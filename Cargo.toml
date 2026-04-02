@@ -20,6 +20,7 @@ thiserror = "1"
 log = "0.4"
 bytemuck = { version = "1", features = ["derive"] }
 glam = "0.29"
+gltf = { version = "1", default-features = false, features = ["KHR_lights_punctual", "extras", "names", "utils"] }
 
 # Optional: WASM loading (feature-gated for native testing)
 wasmtime = { version = "16", optional = true }
