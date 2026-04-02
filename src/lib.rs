@@ -79,6 +79,7 @@
 //! - [`lifecycle`]: Slide lifecycle management (init/update/park/teardown)
 //! - [`shader`]: Shader validation against the VZGLYD contract
 //! - [`types`]: Core types including [`Host`], [`RenderCommand`], [`EngineInput`], [`EngineOutput`]
+//! - [`glb`]: GLB file loading and parsing
 
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
@@ -91,6 +92,7 @@ pub mod lifecycle;
 pub mod shader;
 pub mod kernel;
 pub mod shared_mem;
+pub mod glb;
 
 // Re-export main types
 pub use types::{
@@ -109,3 +111,11 @@ pub use shared_mem::{
 // Re-export main engine types
 pub use kernel::{Engine, EngineConfig, FrameRenderState, SlideEntry, SlideManifestMetadata};
 pub use transition::TransitionKind;
+
+// Re-export GLB types
+pub use glb::{
+    GlbError, ImportedVertex, ImportedMesh, ImportedExtras, ImportedSceneMetadata,
+    ImportedSceneMaterial, ImportedSceneMeshNode, ImportedCameraProjection, ImportedSceneCamera,
+    ImportedSceneAnchor, ImportedSceneDirectionalLight, ImportedScene, SceneAssetRef,
+    load_glb_mesh, load_glb_scene,
+};
