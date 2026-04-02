@@ -4,6 +4,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::slide::manifest::parse_transition_kind;
+use crate::transition::TransitionKind;
+
 /// Filename for playlist configuration.
 pub const PLAYLIST_FILENAME: &str = "playlist.json";
 
@@ -45,6 +48,21 @@ pub struct PlaylistEntry {
     pub params: Option<serde_json::Value>,
 }
 
+/// A fully resolved slide entry produced from a playlist.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedSlideEntry {
+    /// Path to the slide package.
+    pub path: String,
+    /// Effective duration in seconds after playlist/default resolution.
+    pub duration_secs: f32,
+    /// Transition played when this slide enters the screen.
+    pub transition_in: Option<TransitionKind>,
+    /// Transition played when this slide leaves the screen.
+    pub transition_out: Option<TransitionKind>,
+    /// Optional JSON parameters written into the slide configure buffer.
+    pub params: Option<serde_json::Value>,
+}
+
 impl PlaylistEntry {
     /// Returns true if this entry is enabled.
     ///
@@ -77,16 +95,40 @@ pub fn parse_playlist(json_bytes: &[u8]) -> Result<Playlist, String> {
 /// # Returns
 /// A vector of slide paths (filtered to only enabled entries)
 pub fn build_schedule_from_playlist(playlist: &Playlist, base_path: &str) -> Vec<String> {
+    resolve_schedule_from_playlist(playlist, base_path, 7.0)
+        .into_iter()
+        .map(|entry| entry.path)
+        .collect()
+}
+
+/// Resolve a playlist into fully described schedule entries.
+pub fn resolve_schedule_from_playlist(
+    playlist: &Playlist,
+    base_path: &str,
+    engine_default_duration: f32,
+) -> Vec<ResolvedSlideEntry> {
     playlist
         .slides
         .iter()
         .filter(|entry| entry.is_enabled())
-        .map(|entry| {
-            if base_path.ends_with('/') {
+        .map(|entry| ResolvedSlideEntry {
+            path: if base_path.ends_with('/') {
                 format!("{}{}", base_path, entry.path)
             } else {
                 format!("{}/{}", base_path, entry.path)
-            }
+            },
+            duration_secs: resolve_duration(entry, &playlist.defaults, engine_default_duration),
+            transition_in: entry
+                .transition_in
+                .as_deref()
+                .or(playlist.defaults.transition_in.as_deref())
+                .map(parse_transition_kind),
+            transition_out: entry
+                .transition_out
+                .as_deref()
+                .or(playlist.defaults.transition_out.as_deref())
+                .map(parse_transition_kind),
+            params: entry.params.clone(),
         })
         .collect()
 }
@@ -183,6 +225,36 @@ mod tests {
         assert_eq!(schedule.len(), 2);
         assert_eq!(schedule[0], "slides/a.vzglyd");
         assert_eq!(schedule[1], "slides/c.vzglyd");
+    }
+
+    #[test]
+    fn resolve_schedule_keeps_overrides_and_params() {
+        let playlist = Playlist {
+            defaults: PlaylistDefaults {
+                duration_seconds: Some(10),
+                transition_in: Some("crossfade".into()),
+                transition_out: Some("wipe_left".into()),
+            },
+            slides: vec![PlaylistEntry {
+                path: "clock.vzglyd".into(),
+                enabled: Some(true),
+                duration_seconds: Some(20),
+                transition_in: None,
+                transition_out: Some("cut".into()),
+                params: Some(serde_json::json!({"mode":"demo"})),
+            }],
+        };
+
+        let resolved = resolve_schedule_from_playlist(&playlist, "slides", 7.0);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].path, "slides/clock.vzglyd");
+        assert_eq!(resolved[0].duration_secs, 20.0);
+        assert_eq!(resolved[0].transition_in, Some(TransitionKind::Crossfade));
+        assert_eq!(resolved[0].transition_out, Some(TransitionKind::Cut));
+        assert_eq!(
+            resolved[0].params,
+            Some(serde_json::json!({"mode":"demo"}))
+        );
     }
 
     #[test]

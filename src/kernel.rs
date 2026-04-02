@@ -9,10 +9,32 @@
 use std::time::Duration;
 
 use crate::lifecycle::SlideState;
-use crate::schedule::Playlist;
+use crate::schedule::{Playlist, ResolvedSlideEntry, resolve_schedule_from_playlist};
 use crate::transition::{ActiveTransition, TransitionKind, TransitionState, resolve_transition};
 use crate::types::{EngineInput, EngineOutput, EngineState, InputEvent, LogLevel, RenderCommand};
 use crate::Host;
+
+/// Frame rendering state returned by [`Engine::frame_state`].
+///
+/// Tells the host which slide(s) to render this frame and how to composite them.
+/// During a transition, both `current_slide_idx` (outgoing) and `next_slide_idx`
+/// (incoming) must be rendered and composited by the host.
+#[derive(Debug, Clone)]
+pub struct FrameRenderState {
+    /// Index of the currently active slide, or the outgoing slide during a transition.
+    pub current_slide_idx: usize,
+    /// Index of the incoming slide during a transition. `None` when idle.
+    pub next_slide_idx: Option<usize>,
+    /// Smoothstepped transition progress from 0.0 (start) to 1.0 (complete).
+    /// 0.0 when not transitioning.
+    pub transition_progress: f32,
+    /// The kind of transition currently active. `None` when idle.
+    pub transition_kind: Option<TransitionKind>,
+    /// Elapsed time on the current slide in seconds.
+    pub elapsed_secs: f32,
+    /// Total number of slides in the schedule.
+    pub total_slides: usize,
+}
 
 /// Default slide duration in seconds.
 pub const DEFAULT_SLIDE_DURATION: f32 = 7.0;
@@ -37,9 +59,27 @@ impl Default for EngineConfig {
         Self {
             default_duration_secs: DEFAULT_SLIDE_DURATION,
             default_transition: TransitionKind::Crossfade,
-            transition_duration: Duration::from_millis(1000),
+            transition_duration: Duration::from_millis(600),
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+struct PlaylistOverrides {
+    duration_secs: Option<f32>,
+    transition_in: Option<TransitionKind>,
+    transition_out: Option<TransitionKind>,
+}
+
+/// Manifest-derived timing metadata for a loaded slide.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SlideManifestMetadata {
+    /// Optional display duration from the slide manifest.
+    pub duration_secs: Option<f32>,
+    /// Optional transition-in from the slide manifest.
+    pub transition_in: Option<TransitionKind>,
+    /// Optional transition-out from the slide manifest.
+    pub transition_out: Option<TransitionKind>,
 }
 
 /// Slide entry in the schedule.
@@ -53,10 +93,13 @@ pub struct SlideEntry {
     pub transition_in: Option<TransitionKind>,
     /// Transition-out kind.
     pub transition_out: Option<TransitionKind>,
+    /// Optional JSON parameters forwarded to `vzglyd_configure`.
+    pub params: Option<serde_json::Value>,
     /// Current state.
     pub state: SlideState,
     /// Elapsed time in this slide.
     pub elapsed_secs: f32,
+    playlist_overrides: PlaylistOverrides,
 }
 
 impl SlideEntry {
@@ -67,8 +110,27 @@ impl SlideEntry {
             duration_secs,
             transition_in: None,
             transition_out: None,
+            params: None,
             state: SlideState::Unloaded,
             elapsed_secs: 0.0,
+            playlist_overrides: PlaylistOverrides::default(),
+        }
+    }
+
+    fn from_resolved(entry: ResolvedSlideEntry) -> Self {
+        Self {
+            path: entry.path,
+            duration_secs: entry.duration_secs,
+            transition_in: entry.transition_in,
+            transition_out: entry.transition_out,
+            params: entry.params,
+            state: SlideState::Unloaded,
+            elapsed_secs: 0.0,
+            playlist_overrides: PlaylistOverrides {
+                duration_secs: Some(entry.duration_secs),
+                transition_in: entry.transition_in,
+                transition_out: entry.transition_out,
+            },
         }
     }
 
@@ -142,9 +204,22 @@ impl Engine {
             .into_iter()
             .map(|path| SlideEntry::new(path, self.config.default_duration_secs))
             .collect();
+        self.mark_initial_slide_active();
+    }
+
+    /// Sets the slide schedule from pre-resolved entries.
+    ///
+    /// This is the canonical entrypoint for hosts that already resolved
+    /// playlist metadata and want the kernel to own the resulting schedule.
+    pub fn set_resolved_schedule(&mut self, slides: Vec<ResolvedSlideEntry>) {
+        self.schedule = slides.into_iter().map(SlideEntry::from_resolved).collect();
+        self.mark_initial_slide_active();
+    }
+
+    fn mark_initial_slide_active(&mut self) {
         self.current_index = 0;
         if !self.schedule.is_empty() {
-            self.schedule[0].state = SlideState::Loaded;
+            self.schedule[0].state = SlideState::Active;
         }
     }
 
@@ -154,45 +229,9 @@ impl Engine {
     /// * `playlist` - The playlist to use
     /// * `base_path` - Base path to prepend to slide paths
     pub fn set_schedule_from_playlist(&mut self, playlist: &Playlist, base_path: &str) {
-        let slides = crate::schedule::build_schedule_from_playlist(playlist, base_path);
-        
-        // Apply playlist defaults
-        self.schedule = slides
-            .into_iter()
-            .map(|path| {
-                // Find the entry in the playlist
-                let entry = playlist.slides.iter().find(|e| {
-                    let full_path = if base_path.ends_with('/') {
-                        format!("{}{}", base_path, e.path)
-                    } else {
-                        format!("{}/{}", base_path, e.path)
-                    };
-                    full_path == path
-                });
-
-                let duration = entry
-                    .map(|e| crate::schedule::resolve_duration(e, &playlist.defaults, self.config.default_duration_secs))
-                    .unwrap_or(self.config.default_duration_secs);
-
-                let mut slide = SlideEntry::new(path, duration);
-
-                if let Some(entry) = entry {
-                    slide.transition_in = entry.transition_in.as_deref().map(|s| {
-                        crate::slide::manifest::parse_transition_kind(s)
-                    });
-                    slide.transition_out = entry.transition_out.as_deref().map(|s| {
-                        crate::slide::manifest::parse_transition_kind(s)
-                    });
-                }
-
-                slide
-            })
-            .collect();
-
-        self.current_index = 0;
-        if !self.schedule.is_empty() {
-            self.schedule[0].state = SlideState::Loaded;
-        }
+        let slides =
+            resolve_schedule_from_playlist(playlist, base_path, self.config.default_duration_secs);
+        self.set_resolved_schedule(slides);
     }
 
     /// Returns the current engine state.
@@ -221,6 +260,39 @@ impl Engine {
     /// Returns the current slide path.
     pub fn current_slide_path(&self) -> Option<&str> {
         self.schedule.get(self.current_index).map(|s| s.path.as_str())
+    }
+
+    /// Returns the current schedule entries.
+    pub fn schedule_entries(&self) -> &[SlideEntry] {
+        &self.schedule
+    }
+
+    /// Returns a single schedule entry by index.
+    pub fn slide_entry(&self, index: usize) -> Option<&SlideEntry> {
+        self.schedule.get(index)
+    }
+
+    /// Applies manifest timing metadata to a loaded slide.
+    ///
+    /// Playlist overrides remain authoritative when present.
+    pub fn apply_manifest_metadata(&mut self, index: usize, manifest: SlideManifestMetadata) {
+        let Some(slide) = self.schedule.get_mut(index) else {
+            return;
+        };
+
+        slide.duration_secs = slide
+            .playlist_overrides
+            .duration_secs
+            .or(manifest.duration_secs)
+            .unwrap_or(self.config.default_duration_secs);
+        slide.transition_in = slide
+            .playlist_overrides
+            .transition_in
+            .or(manifest.transition_in);
+        slide.transition_out = slide
+            .playlist_overrides
+            .transition_out
+            .or(manifest.transition_out);
     }
 
     /// Main engine update loop.
@@ -377,6 +449,42 @@ impl Engine {
         self.transition = TransitionState::Idle;
     }
 
+    /// Returns the frame rendering state for the current frame.
+    ///
+    /// Use this to determine which slide(s) to render and how to composite them.
+    /// During a transition, `current_slide_idx` is the outgoing slide and
+    /// `next_slide_idx` is the incoming slide.
+    pub fn frame_state(&self) -> FrameRenderState {
+        let current = self.schedule.get(self.current_index);
+        let elapsed_secs = current.map(|s| s.elapsed_secs).unwrap_or(0.0);
+
+        match &self.transition {
+            TransitionState::Idle => FrameRenderState {
+                current_slide_idx: self.current_index,
+                next_slide_idx: None,
+                transition_progress: 0.0,
+                transition_kind: None,
+                elapsed_secs,
+                total_slides: self.schedule.len(),
+            },
+            TransitionState::Blending(active) => {
+                let next_idx = if self.schedule.len() > 1 {
+                    (active.outgoing_idx + 1) % self.schedule.len()
+                } else {
+                    active.outgoing_idx
+                };
+                FrameRenderState {
+                    current_slide_idx: active.outgoing_idx,
+                    next_slide_idx: Some(next_idx),
+                    transition_progress: active.smooth_progress(self.total_time_secs),
+                    transition_kind: Some(active.kind),
+                    elapsed_secs,
+                    total_slides: self.schedule.len(),
+                }
+            }
+        }
+    }
+
     /// Generates render commands for the current frame.
     fn generate_render_commands(&self) -> Vec<RenderCommand> {
         let mut commands = Vec::new();
@@ -459,6 +567,42 @@ mod tests {
 
         assert_eq!(engine.total_slides(), 2);
         assert_eq!(engine.current_slide_path(), Some("a.vzglyd"));
+        assert_eq!(engine.slide_entry(0).map(|entry| entry.state), Some(SlideState::Active));
+    }
+
+    #[test]
+    fn default_transition_duration_is_six_hundred_ms() {
+        assert_eq!(
+            EngineConfig::default().transition_duration,
+            Duration::from_millis(600)
+        );
+    }
+
+    #[test]
+    fn manifest_metadata_fills_missing_playlist_values_only() {
+        let mut engine = Engine::new();
+        engine.set_resolved_schedule(vec![ResolvedSlideEntry {
+            path: "clock.vzglyd".into(),
+            duration_secs: 20.0,
+            transition_in: Some(TransitionKind::Crossfade),
+            transition_out: None,
+            params: Some(serde_json::json!({"mode":"demo"})),
+        }]);
+
+        engine.apply_manifest_metadata(
+            0,
+            SlideManifestMetadata {
+                duration_secs: Some(99.0),
+                transition_in: Some(TransitionKind::Dissolve),
+                transition_out: Some(TransitionKind::Cut),
+            },
+        );
+
+        let entry = engine.slide_entry(0).expect("slide entry");
+        assert_eq!(entry.duration_secs, 20.0);
+        assert_eq!(entry.transition_in, Some(TransitionKind::Crossfade));
+        assert_eq!(entry.transition_out, Some(TransitionKind::Cut));
+        assert_eq!(entry.params, Some(serde_json::json!({"mode":"demo"})));
     }
 
     #[test]

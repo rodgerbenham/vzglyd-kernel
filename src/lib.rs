@@ -107,4 +107,5 @@ pub use shared_mem::{
 };
 
 // Re-export main engine types
-pub use kernel::Engine;
+pub use kernel::{Engine, EngineConfig, FrameRenderState, SlideEntry, SlideManifestMetadata};
+pub use transition::TransitionKind;
