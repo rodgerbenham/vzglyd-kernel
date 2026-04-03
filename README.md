@@ -160,8 +160,8 @@ This crate represents **Phase 1** of the VZGLYD kernel extraction:
 ### Future Phases
 
 **Phase 2:** Update native host (`lume/`) to implement `Host` trait  
-**Phase 3:** Create `vzglyd-webgpu` host (TypeScript + WebGPU)  
-**Phase 4:** Create `vzglyd-webgl` host (TypeScript + WebGL2)  
+**Phase 3:** Create `VRX-64-webgpu` host (TypeScript + WebGPU)  
+**Phase 4:** Create `VRX-64-webgl` host (TypeScript + WebGL2)  
 
 ## License
 

@@ -3,6 +3,33 @@
 version = 4
 
 [[package]]
+name = "VRX-64-kernel"
+version = "0.1.0"
+dependencies = [
+ "VRX-64-slide",
+ "bytemuck",
+ "glam",
+ "gltf",
+ "log",
+ "naga",
+ "postcard",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "wasmtime",
+ "wasmtime-wasi",
+]
+
+[[package]]
+name = "VRX-64-slide"
+version = "0.1.0"
+source = "git+https://github.com/vzglyd/VRX-64-slide#988b9fe212f0422f5bc117225494a1b99c3eecc8"
+dependencies = [
+ "bytemuck",
+ "serde",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1814,33 +1841,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "vzglyd-kernel"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "glam",
- "gltf",
- "log",
- "naga",
- "postcard",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "vzglyd-slide",
- "wasmtime",
- "wasmtime-wasi",
-]
-
-[[package]]
-name = "vzglyd-slide"
-version = "0.1.0"
-source = "git+https://github.com/vzglyd/vzglyd-slide#773aac15a198c97c255bd75a91e735d210da2605"
-dependencies = [
- "bytemuck",
- "serde",
-]
 
 [[package]]
 name = "wasi"
