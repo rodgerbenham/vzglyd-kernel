@@ -92,6 +92,7 @@ loop {
 - **`transition`**: Transition types and state machine
 - **`lifecycle`**: Slide lifecycle management (states, events)
 - **`shader`**: Shader validation against the VZGLYD contract
+- **`trace`**: Perfetto-compatible trace recorder used by native and web hosts
 
 ## Platform Abstraction
 
@@ -147,21 +148,9 @@ cargo test
 
 All tests pass without requiring a display or GPU.
 
-## Phase 1 Status
+## Tracing
 
-This crate represents **Phase 1** of the VZGLYD kernel extraction:
-
-✅ Define and isolate the kernel boundary  
-✅ Create platform abstraction (`Host` trait)  
-✅ Extract pure logic (transitions, scheduling, validation)  
-✅ Define core loop (`Engine::update()`)  
-✅ Compile to native and WASM targets  
-
-### Future Phases
-
-**Phase 2:** Update native host (`lume/`) to implement `Host` trait  
-**Phase 3:** Create `VRX-64-webgpu` host (TypeScript + WebGPU)  
-**Phase 4:** Create `VRX-64-webgl` host (TypeScript + WebGL2)  
+The kernel now provides a shared `trace` module used by both hosts to record Perfetto-compatible session files. Collection workflow lives in the sibling repo `VRX-64-tracing`.
 
 ## License
 
