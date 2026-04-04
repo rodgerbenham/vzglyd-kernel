@@ -339,11 +339,7 @@ impl SharedMemoryBuilder {
     pub fn write_array<T: bytemuck::Pod>(&mut self, items: &[T]) -> (u32, u32) {
         let count = items.len() as u32;
 
-        assert!(
-            count <= MAX_ARRAY_LEN,
-            "Array too long: {} elements",
-            count
-        );
+        assert!(count <= MAX_ARRAY_LEN, "Array too long: {} elements", count);
 
         let ptr = self.array_offset;
         let bytes = bytemuck::cast_slice(items);

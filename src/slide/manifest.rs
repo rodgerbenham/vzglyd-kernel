@@ -292,9 +292,7 @@ fn validate_sidecar_preopen(spec: &str) -> Result<(), ManifestValidationError> {
             spec.to_string(),
         ));
     }
-    if !std::path::Path::new(host).is_absolute()
-        || !std::path::Path::new(guest).is_absolute()
-    {
+    if !std::path::Path::new(host).is_absolute() || !std::path::Path::new(guest).is_absolute() {
         return Err(ManifestValidationError::InvalidSidecarPreopen(
             spec.to_string(),
         ));
@@ -319,8 +317,8 @@ pub fn parse_transition_kind(kind: &str) -> TransitionKind {
 
 /// Parse a manifest from JSON bytes.
 pub fn parse_manifest(json_bytes: &[u8]) -> Result<SlideManifest, String> {
-    let content = std::str::from_utf8(json_bytes)
-        .map_err(|e| format!("invalid UTF-8 in manifest: {e}"))?;
+    let content =
+        std::str::from_utf8(json_bytes).map_err(|e| format!("invalid UTF-8 in manifest: {e}"))?;
     serde_json::from_str(content).map_err(|e| format!("invalid manifest JSON: {e}"))
 }
 
@@ -429,7 +427,10 @@ mod tests {
 
     #[test]
     fn parse_transition_kind_valid() {
-        assert_eq!(parse_transition_kind("crossfade"), TransitionKind::Crossfade);
+        assert_eq!(
+            parse_transition_kind("crossfade"),
+            TransitionKind::Crossfade
+        );
         assert_eq!(parse_transition_kind("wipe_left"), TransitionKind::WipeLeft);
         assert_eq!(parse_transition_kind("wipe_down"), TransitionKind::WipeDown);
         assert_eq!(parse_transition_kind("dissolve"), TransitionKind::Dissolve);
@@ -438,9 +439,6 @@ mod tests {
 
     #[test]
     fn parse_transition_kind_unknown_returns_default() {
-        assert_eq!(
-            parse_transition_kind("mystery"),
-            TransitionKind::Crossfade
-        );
+        assert_eq!(parse_transition_kind("mystery"), TransitionKind::Crossfade);
     }
 }

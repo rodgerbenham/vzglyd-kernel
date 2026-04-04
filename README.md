@@ -150,7 +150,7 @@ All tests pass without requiring a display or GPU.
 
 ## Tracing
 
-The kernel now provides a shared `trace` module used by both hosts to record Perfetto-compatible session files. Collection workflow lives in the sibling repo `VRX-64-tracing`.
+The kernel now provides a shared `trace` module used by both hosts to record direct Perfetto-compatible trace artifacts. Capture workflow lives in the hosts; reference docs live in the sibling repo `VRX-64-tracing`.
 
 ## License
 

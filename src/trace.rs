@@ -58,15 +58,11 @@ impl TraceRecorderState {
 }
 
 struct TraceRecorderInner {
-    output_dir: PathBuf,
     trace_path: PathBuf,
-    session_path: PathBuf,
-    host_kind: String,
-    label: String,
     state: Mutex<TraceRecorderState>,
 }
 
-/// Shared recorder that writes Perfetto-compatible trace JSON and session metadata.
+/// Shared recorder that writes Perfetto-compatible trace JSON.
 #[derive(Clone)]
 pub struct TraceRecorder {
     inner: Arc<TraceRecorderInner>,
@@ -84,16 +80,16 @@ pub struct TraceSpanGuard {
 }
 
 impl TraceRecorder {
-    /// Create a new trace recorder rooted at `output_dir`.
+    /// Create a new trace recorder that flushes to `trace_path`.
     pub fn new(
-        output_dir: impl AsRef<Path>,
+        trace_path: impl AsRef<Path>,
         host_kind: impl Into<String>,
         label: impl Into<String>,
     ) -> io::Result<Self> {
-        let output_dir = output_dir.as_ref().to_path_buf();
-        fs::create_dir_all(&output_dir)?;
-        let trace_path = output_dir.join("trace.json");
-        let session_path = output_dir.join("session.json");
+        let trace_path = trace_path.as_ref().to_path_buf();
+        if let Some(parent) = trace_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         let host_kind = host_kind.into();
         let label = label.into();
 
@@ -122,11 +118,7 @@ impl TraceRecorder {
 
         Ok(Self {
             inner: Arc::new(TraceRecorderInner {
-                output_dir,
                 trace_path,
-                session_path,
-                host_kind,
-                label,
                 state: Mutex::new(state),
             }),
         })
@@ -274,36 +266,24 @@ impl TraceRecorder {
         });
     }
 
-    /// Flush trace and session metadata to disk.
+    /// Flush the trace artifact to disk.
     pub fn flush(&self) -> io::Result<PathBuf> {
-        let (trace_file, session_metadata) = {
+        let trace_file = {
             let state = self
                 .inner
                 .state
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            (
-                TraceFile {
-                    trace_events: state.events.clone(),
-                    display_time_unit: "ms",
-                    metadata: state.metadata.clone(),
-                },
-                SessionMetadata {
-                    host_kind: self.inner.host_kind.clone(),
-                    label: self.inner.label.clone(),
-                    output_dir: self.inner.output_dir.display().to_string(),
-                    trace_path: self.inner.trace_path.display().to_string(),
-                    metadata: state.metadata.clone(),
-                },
-            )
+            TraceFile {
+                trace_events: state.events.clone(),
+                display_time_unit: "ms",
+                metadata: state.metadata.clone(),
+            }
         };
 
         let trace_json = serde_json::to_vec_pretty(&trace_file)
             .map_err(|error| io::Error::other(error.to_string()))?;
-        let session_json = serde_json::to_vec_pretty(&session_metadata)
-            .map_err(|error| io::Error::other(error.to_string()))?;
         fs::write(&self.inner.trace_path, trace_json)?;
-        fs::write(&self.inner.session_path, session_json)?;
         Ok(self.inner.trace_path.clone())
     }
 
@@ -381,15 +361,6 @@ impl Drop for TraceSpanGuard {
     }
 }
 
-#[derive(Serialize)]
-struct SessionMetadata {
-    host_kind: String,
-    label: String,
-    output_dir: String,
-    trace_path: String,
-    metadata: BTreeMap<String, String>,
-}
-
 fn resolve_thread(state: &mut TraceRecorderState, key: &str) -> u32 {
     if let Some(existing) = state.threads.get(key) {
         return *existing;
@@ -428,13 +399,14 @@ mod tests {
     #[test]
     fn writes_perfetto_trace_file() {
         let out_dir = unique_dir("perfetto");
-        let recorder = TraceRecorder::new(&out_dir, "native", "test").expect("recorder");
+        let trace_path = out_dir.join("native-test.perfetto.json");
+        let recorder = TraceRecorder::new(&trace_path, "native", "test").expect("recorder");
         {
             let mut span = recorder.scoped("main", "frame", "render_frame");
             span.add_attr("slide", "air_quality");
         }
         recorder.flush().expect("flush");
-        let trace = std::fs::read_to_string(out_dir.join("trace.json")).expect("trace file");
+        let trace = std::fs::read_to_string(trace_path).expect("trace file");
         assert!(trace.contains("\"name\": \"render_frame\""));
         assert!(trace.contains("\"ph\": \"X\""));
     }

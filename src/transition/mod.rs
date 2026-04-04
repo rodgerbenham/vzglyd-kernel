@@ -219,12 +219,8 @@ mod tests {
 
     #[test]
     fn active_transition_progress() {
-        let transition = ActiveTransition::new(
-            TransitionKind::Crossfade,
-            0,
-            Duration::from_secs(2),
-            0.0,
-        );
+        let transition =
+            ActiveTransition::new(TransitionKind::Crossfade, 0, Duration::from_secs(2), 0.0);
 
         assert_eq!(transition.progress(0.0), 0.0);
         assert_eq!(transition.progress(1.0), 0.5);
@@ -234,12 +230,8 @@ mod tests {
 
     #[test]
     fn active_transition_completion() {
-        let transition = ActiveTransition::new(
-            TransitionKind::Crossfade,
-            0,
-            Duration::from_secs(2),
-            0.0,
-        );
+        let transition =
+            ActiveTransition::new(TransitionKind::Crossfade, 0, Duration::from_secs(2), 0.0);
 
         assert!(!transition.is_complete(0.0));
         assert!(!transition.is_complete(1.0));

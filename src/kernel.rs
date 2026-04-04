@@ -8,11 +8,11 @@
 
 use std::time::Duration;
 
+use crate::Host;
 use crate::lifecycle::SlideState;
 use crate::schedule::{Playlist, ResolvedSlideEntry, resolve_schedule_from_playlist};
 use crate::transition::{ActiveTransition, TransitionKind, TransitionState, resolve_transition};
 use crate::types::{EngineInput, EngineOutput, EngineState, InputEvent, LogLevel, RenderCommand};
-use crate::Host;
 
 /// Frame rendering state returned by [`Engine::frame_state`].
 ///
@@ -259,7 +259,9 @@ impl Engine {
 
     /// Returns the current slide path.
     pub fn current_slide_path(&self) -> Option<&str> {
-        self.schedule.get(self.current_index).map(|s| s.path.as_str())
+        self.schedule
+            .get(self.current_index)
+            .map(|s| s.path.as_str())
     }
 
     /// Returns the current schedule entries.
@@ -357,7 +359,10 @@ impl Engine {
         match event {
             InputEvent::Resized { width, height } => {
                 // Host handles resize, kernel just notes it
-                host.log(LogLevel::Debug, &format!("Viewport resized to {}x{}", width, height));
+                host.log(
+                    LogLevel::Debug,
+                    &format!("Viewport resized to {}x{}", width, height),
+                );
             }
             InputEvent::DataReady { key, data } => {
                 // Data request fulfilled by host
@@ -567,7 +572,10 @@ mod tests {
 
         assert_eq!(engine.total_slides(), 2);
         assert_eq!(engine.current_slide_path(), Some("a.vzglyd"));
-        assert_eq!(engine.slide_entry(0).map(|entry| entry.state), Some(SlideState::Active));
+        assert_eq!(
+            engine.slide_entry(0).map(|entry| entry.state),
+            Some(SlideState::Active)
+        );
     }
 
     #[test]
