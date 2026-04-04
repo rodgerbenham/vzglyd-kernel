@@ -289,9 +289,8 @@ pub fn load_glb_scene(
             format!("failed to read scene '{}': {error}", path.display()),
         )
     })?;
-    let gltf = gltf::Gltf::from_slice(&bytes).map_err(|error| {
-        GlbError::ParseError(path.display().to_string(), error.to_string())
-    })?;
+    let gltf = gltf::Gltf::from_slice(&bytes)
+        .map_err(|error| GlbError::ParseError(path.display().to_string(), error.to_string()))?;
     let blob = gltf.blob.as_deref().ok_or_else(|| {
         GlbError::FormatError(format!(
             "GLB '{}' is missing its binary buffer chunk",

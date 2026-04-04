@@ -127,7 +127,10 @@ impl ShaderValidationError {
     fn from_parse(label: &str, source: &str, error: naga::front::wgsl::ParseError) -> Self {
         let summary = error.to_string();
         let diagnostic = error.emit_to_string_with_path(source, label);
-        Self { summary, diagnostic }
+        Self {
+            summary,
+            diagnostic,
+        }
     }
 
     fn from_naga_validation(
@@ -142,7 +145,10 @@ impl ShaderValidationError {
             inner: Box::new(error),
         }
         .to_string();
-        Self { summary, diagnostic }
+        Self {
+            summary,
+            diagnostic,
+        }
     }
 
     fn custom(summary: impl Into<String>, diagnostic: impl Into<String>) -> Self {

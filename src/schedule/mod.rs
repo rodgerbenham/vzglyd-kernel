@@ -81,8 +81,8 @@ impl PlaylistEntry {
 /// * `Ok(Playlist)` if parsing succeeds
 /// * `Err` if the JSON is invalid
 pub fn parse_playlist(json_bytes: &[u8]) -> Result<Playlist, String> {
-    let content = std::str::from_utf8(json_bytes)
-        .map_err(|e| format!("invalid UTF-8 in playlist: {e}"))?;
+    let content =
+        std::str::from_utf8(json_bytes).map_err(|e| format!("invalid UTF-8 in playlist: {e}"))?;
     serde_json::from_str(content).map_err(|e| format!("invalid playlist JSON: {e}"))
 }
 
@@ -183,7 +183,10 @@ mod tests {
 
         let playlist = parse_playlist(json).expect("parse playlist");
         assert_eq!(playlist.defaults.duration_seconds, Some(10));
-        assert_eq!(playlist.defaults.transition_in.as_deref(), Some("crossfade"));
+        assert_eq!(
+            playlist.defaults.transition_in.as_deref(),
+            Some("crossfade")
+        );
         assert_eq!(playlist.slides[0].duration_seconds, Some(20));
         assert_eq!(playlist.slides[0].transition_out.as_deref(), Some("cut"));
         assert_eq!(playlist.slides[1].enabled, Some(false));
@@ -251,10 +254,7 @@ mod tests {
         assert_eq!(resolved[0].duration_secs, 20.0);
         assert_eq!(resolved[0].transition_in, Some(TransitionKind::Crossfade));
         assert_eq!(resolved[0].transition_out, Some(TransitionKind::Cut));
-        assert_eq!(
-            resolved[0].params,
-            Some(serde_json::json!({"mode":"demo"}))
-        );
+        assert_eq!(resolved[0].params, Some(serde_json::json!({"mode":"demo"})));
     }
 
     #[test]

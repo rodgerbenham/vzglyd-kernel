@@ -34,9 +34,7 @@ pub enum RenderCommand {
     EndFrame,
 
     /// Bind a pipeline by kind
-    BindPipeline {
-        kind: PipelineKind,
-    },
+    BindPipeline { kind: PipelineKind },
 
     /// Bind a texture to a specific slot
     BindTexture {
@@ -246,19 +244,11 @@ pub struct EngineInput {
 #[derive(Debug, Clone)]
 pub enum InputEvent {
     /// Window was resized
-    Resized {
-        width: u32,
-        height: u32,
-    },
+    Resized { width: u32, height: u32 },
     /// Data request was fulfilled
-    DataReady {
-        key: String,
-        data: Vec<u8>,
-    },
+    DataReady { key: String, data: Vec<u8> },
     /// User input (for interactive slides)
-    UserInput {
-        kind: InputKind,
-    },
+    UserInput { kind: InputKind },
 }
 
 /// User input kind

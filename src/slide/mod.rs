@@ -12,7 +12,9 @@
 
 pub mod manifest;
 
-pub use manifest::{ManifestAssets, ManifestRequirements, ManifestShaders, ManifestSidecar, SlideManifest};
+pub use manifest::{
+    ManifestAssets, ManifestRequirements, ManifestShaders, ManifestSidecar, SlideManifest,
+};
 
 use thiserror::Error;
 use vzglyd_slide::Limits;
@@ -68,46 +70,46 @@ pub fn decode_spec_from_memory<'a>(
     header_ptr: u32,
 ) -> Result<SlideSpecView<'a>, SpecDecodeError> {
     use crate::shared_mem::SlideSpecHeader;
-    
+
     // Read header
     let header = read_struct::<SlideSpecHeader>(memory, header_ptr)?;
-    
+
     // Validate version
     if header.version != crate::shared_mem::WIRE_VERSION {
         return Err(SpecDecodeError::UnsupportedVersion(header.version));
     }
-    
+
     // Read name string
     let name = read_string(memory, header.name_ptr, header.name_len)?;
-    
+
     // Read texture array
     let textures = read_array::<crate::shared_mem::TextureDescMem>(
         memory,
         header.textures_offset,
         header.textures_count,
     )?;
-    
+
     // Read static mesh array
     let static_meshes = read_array::<crate::shared_mem::StaticMeshMem>(
         memory,
         header.static_meshes_offset,
         header.static_meshes_count,
     )?;
-    
+
     // Read dynamic mesh array
     let dynamic_meshes = read_array::<crate::shared_mem::DynamicMeshMem>(
         memory,
         header.dynamic_meshes_offset,
         header.dynamic_meshes_count,
     )?;
-    
+
     // Read draw spec array
     let draws = read_array::<crate::shared_mem::DrawSpecMem>(
         memory,
         header.draws_offset,
         header.draws_count,
     )?;
-    
+
     // Convert limits from memory format
     let limits = Limits {
         max_vertices: header.limits.max_vertices,
@@ -118,7 +120,7 @@ pub fn decode_spec_from_memory<'a>(
         max_texture_bytes: header.limits.max_texture_bytes,
         max_texture_dim: header.limits.max_texture_dim,
     };
-    
+
     Ok(SlideSpecView {
         name,
         limits,
@@ -131,37 +133,30 @@ pub fn decode_spec_from_memory<'a>(
 }
 
 /// Reads a POD struct from memory at the given pointer.
-fn read_struct<'a, T: bytemuck::Pod>(
-    memory: &'a [u8],
-    ptr: u32,
-) -> Result<&'a T, SpecDecodeError> {
+fn read_struct<'a, T: bytemuck::Pod>(memory: &'a [u8], ptr: u32) -> Result<&'a T, SpecDecodeError> {
     let start = ptr as usize;
     let end = start + core::mem::size_of::<T>();
-    
+
     let bytes = memory
         .get(start..end)
         .ok_or_else(|| SpecDecodeError::OutOfBounds(format!("struct at {} out of bounds", ptr)))?;
-    
+
     Ok(bytemuck::from_bytes(bytes))
 }
 
 /// Reads a string from memory.
-fn read_string<'a>(
-    memory: &'a [u8],
-    ptr: u32,
-    len: u32,
-) -> Result<&'a str, SpecDecodeError> {
+fn read_string<'a>(memory: &'a [u8], ptr: u32, len: u32) -> Result<&'a str, SpecDecodeError> {
     if len == 0 {
         return Ok("");
     }
-    
+
     let start = ptr as usize;
     let end = start + len as usize;
-    
+
     let bytes = memory
         .get(start..end)
         .ok_or_else(|| SpecDecodeError::OutOfBounds(format!("string at {} out of bounds", ptr)))?;
-    
+
     std::str::from_utf8(bytes).map_err(SpecDecodeError::InvalidUtf8)
 }
 
@@ -174,15 +169,15 @@ fn read_array<'a, T: bytemuck::Pod>(
     if count == 0 {
         return Ok(&[]);
     }
-    
+
     let start = offset as usize;
     let byte_size = count as usize * core::mem::size_of::<T>();
     let end = start + byte_size;
-    
-    let bytes = memory
-        .get(start..end)
-        .ok_or_else(|| SpecDecodeError::OutOfBounds(format!("array at {} out of bounds", offset)))?;
-    
+
+    let bytes = memory.get(start..end).ok_or_else(|| {
+        SpecDecodeError::OutOfBounds(format!("array at {} out of bounds", offset))
+    })?;
+
     Ok(bytemuck::cast_slice(bytes))
 }
 
@@ -203,25 +198,17 @@ pub fn read_overlay_from_memory<'a, V: bytemuck::Pod>(
     len: u32,
 ) -> Result<Option<OverlayView<'a, V>>, SpecDecodeError> {
     use crate::shared_mem::RuntimeOverlayHeader;
-    
+
     if len == 0 {
         return Ok(None);
     }
-    
+
     let header = read_struct::<RuntimeOverlayHeader>(memory, ptr)?;
-    
-    let vertices = read_array::<V>(
-        memory,
-        header.vertices_ptr,
-        header.vertices_count,
-    )?;
-    
-    let indices = read_array::<u16>(
-        memory,
-        header.indices_ptr,
-        header.indices_count,
-    )?;
-    
+
+    let vertices = read_array::<V>(memory, header.vertices_ptr, header.vertices_count)?;
+
+    let indices = read_array::<u16>(memory, header.indices_ptr, header.indices_count)?;
+
     Ok(Some(OverlayView { vertices, indices }))
 }
 
@@ -250,35 +237,29 @@ pub fn read_dynamic_meshes_from_memory<'a, V: bytemuck::Pod>(
     len: u32,
 ) -> Result<Option<MeshSetView<'a, V>>, SpecDecodeError> {
     use crate::shared_mem::{RuntimeMeshHeader, RuntimeMeshSetHeader};
-    
+
     if len == 0 {
         return Ok(None);
     }
-    
+
     let set_header = read_struct::<RuntimeMeshSetHeader>(memory, ptr)?;
-    
-    let mesh_headers = read_array::<RuntimeMeshHeader>(
-        memory,
-        set_header.meshes_offset,
-        set_header.meshes_count,
-    )?;
-    
+
+    let mesh_headers =
+        read_array::<RuntimeMeshHeader>(memory, set_header.meshes_offset, set_header.meshes_count)?;
+
     let mut meshes = Vec::with_capacity(mesh_headers.len());
-    
+
     for mesh_header in mesh_headers {
-        let vertices = read_array::<V>(
-            memory,
-            mesh_header.vertices_ptr,
-            mesh_header.vertices_count,
-        )?;
-        
+        let vertices =
+            read_array::<V>(memory, mesh_header.vertices_ptr, mesh_header.vertices_count)?;
+
         meshes.push(MeshUpdateView {
             mesh_index: mesh_header.mesh_index,
             vertices,
             index_count: mesh_header.index_count,
         });
     }
-    
+
     Ok(Some(MeshSetView { meshes }))
 }
 
@@ -306,25 +287,28 @@ pub fn pi4_limits() -> Limits {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shared_mem::{SharedMemoryBuilder, SlideSpecHeader, LimitsMem};
+    use crate::shared_mem::{LimitsMem, SharedMemoryBuilder, SlideSpecHeader};
 
     #[test]
     fn unsupported_version() {
         let mut builder = SharedMemoryBuilder::new();
         let (name_ptr, name_len) = builder.write_string("Test");
-        
+
         let header = SlideSpecHeader {
-            version: 99,  // Wrong version
+            version: 99, // Wrong version
             name_ptr,
             name_len,
             ..Default::default()
         };
-        
+
         let layout = builder.build(header);
         let memory = layout.as_slice();
-        
+
         let result = decode_spec_from_memory(memory, 0);
-        assert!(matches!(result, Err(SpecDecodeError::UnsupportedVersion(99))));
+        assert!(matches!(
+            result,
+            Err(SpecDecodeError::UnsupportedVersion(99))
+        ));
     }
 
     #[test]
@@ -332,7 +316,7 @@ mod tests {
         // Build a shared memory layout
         let mut builder = SharedMemoryBuilder::new();
         let (name_ptr, name_len) = builder.write_string("Test Slide");
-        
+
         let header = SlideSpecHeader {
             version: WIRE_VERSION,
             name_ptr,
@@ -345,14 +329,14 @@ mod tests {
             scene_space: 0, // Screen2D
             ..Default::default()
         };
-        
+
         let layout = builder.build(header);
         let memory = layout.as_slice();
-        
+
         // Decode from memory
         let result = decode_spec_from_memory(memory, 0);
         assert!(result.is_ok());
-        
+
         let spec_view = result.unwrap();
         assert_eq!(spec_view.name, "Test Slide");
         assert_eq!(spec_view.limits.max_vertices, 60000);
