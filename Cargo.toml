@@ -14,7 +14,7 @@ name = "vzglyd_kernel"
 [workspace]
 
 [dependencies]
-vzglyd_slide = { package = "VRX-64-slide", git = "https://github.com/vzglyd/VRX-64-slide" }
+vzglyd_slide = { package = "VRX-64-slide", path = "../VRX-64-slide" }
 postcard = { version = "1", features = ["alloc", "use-std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

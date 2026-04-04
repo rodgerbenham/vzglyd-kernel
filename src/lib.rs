@@ -84,15 +84,16 @@
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
-pub mod types;
-pub mod slide;
-pub mod schedule;
-pub mod transition;
-pub mod lifecycle;
-pub mod shader;
-pub mod kernel;
-pub mod shared_mem;
 pub mod glb;
+pub mod kernel;
+pub mod lifecycle;
+pub mod schedule;
+pub mod shader;
+pub mod shared_mem;
+pub mod slide;
+pub mod trace;
+pub mod transition;
+pub mod types;
 
 // Re-export main types
 pub use types::{
@@ -103,9 +104,9 @@ pub use types::{
 
 // Re-export shared memory types
 pub use shared_mem::{
-    CameraKeyframeMem, CameraPathMem, DrawSpecMem, DynamicMeshMem, LimitsMem,
-    RuntimeMeshHeader, RuntimeMeshSetHeader, RuntimeOverlayHeader, SharedMemoryBuilder,
-    SharedMemoryLayout, SlideSpecHeader, StaticMeshMem, TextureDescMem, WIRE_VERSION,
+    CameraKeyframeMem, CameraPathMem, DrawSpecMem, DynamicMeshMem, LimitsMem, RuntimeMeshHeader,
+    RuntimeMeshSetHeader, RuntimeOverlayHeader, SharedMemoryBuilder, SharedMemoryLayout,
+    SlideSpecHeader, StaticMeshMem, TextureDescMem, WIRE_VERSION,
 };
 
 // Re-export main engine types
@@ -114,8 +115,8 @@ pub use transition::TransitionKind;
 
 // Re-export GLB types
 pub use glb::{
-    GlbError, ImportedVertex, ImportedMesh, ImportedExtras, ImportedSceneMetadata,
-    ImportedSceneMaterial, ImportedSceneMeshNode, ImportedCameraProjection, ImportedSceneCamera,
-    ImportedSceneAnchor, ImportedSceneDirectionalLight, ImportedScene, SceneAssetRef,
-    load_glb_mesh, load_glb_scene,
+    GlbError, ImportedCameraProjection, ImportedExtras, ImportedMesh, ImportedScene,
+    ImportedSceneAnchor, ImportedSceneCamera, ImportedSceneDirectionalLight, ImportedSceneMaterial,
+    ImportedSceneMeshNode, ImportedSceneMetadata, ImportedVertex, SceneAssetRef, load_glb_mesh,
+    load_glb_scene,
 };
