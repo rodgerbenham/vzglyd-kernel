@@ -8,9 +8,13 @@ use serde::{Deserialize, Serialize};
 /// Logging severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
+    /// Debug level for detailed information
     Debug,
+    /// Info level for general information
     Info,
+    /// Warn level for warnings
     Warn,
+    /// Error level for errors
     Error,
 }
 
@@ -34,10 +38,14 @@ pub enum RenderCommand {
     EndFrame,
 
     /// Bind a pipeline by kind
-    BindPipeline { kind: PipelineKind },
+    BindPipeline {
+        /// Pipeline kind to bind
+        kind: PipelineKind,
+    },
 
     /// Bind a texture to a specific slot
     BindTexture {
+        /// Slot index to bind the texture to
         slot: u32,
         /// Handle to the texture resource (host-specific interpretation)
         handle: TextureHandle,
@@ -45,6 +53,7 @@ pub enum RenderCommand {
 
     /// Bind a sampler to a specific slot
     BindSampler {
+        /// Slot index to bind the sampler to
         slot: u32,
         /// Handle to the sampler resource
         handle: SamplerHandle,
@@ -86,25 +95,37 @@ pub enum RenderCommand {
 
     /// Set the viewport
     SetViewport {
+        /// X position of the viewport
         x: f32,
+        /// Y position of the viewport
         y: f32,
+        /// Width of the viewport
         width: f32,
+        /// Height of the viewport
         height: f32,
+        /// Minimum depth value
         min_depth: f32,
+        /// Maximum depth value
         max_depth: f32,
     },
 
     /// Set the scissor rect
     SetScissor {
+        /// X position of the scissor rect
         x: u32,
+        /// Y position of the scissor rect
         y: u32,
+        /// Width of the scissor rect
         width: u32,
+        /// Height of the scissor rect
         height: u32,
     },
 
     /// Clear the render target
     Clear {
+        /// Color to clear the render target with (RGBA)
         color: Option<[f32; 4]>,
+        /// Depth value to clear the render target with
         depth: Option<f32>,
     },
 
@@ -179,21 +200,29 @@ pub struct BufferHandle(pub u32);
 /// Texture format
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextureFormat {
+    /// RGBA8 format without sRGB encoding
     Rgba8Unorm,
+    /// RGBA8 format with sRGB encoding
     Rgba8UnormSrgb,
+    /// 32-bit depth format
     Depth32Float,
 }
 
 /// Buffer usage flags
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BufferUsage {
+    /// Whether the buffer can be used as a vertex buffer
     pub vertex: bool,
+    /// Whether the buffer can be used as an index buffer
     pub index: bool,
+    /// Whether the buffer can be used as a uniform buffer
     pub uniform: bool,
+    /// Whether the buffer can be used as a storage buffer
     pub storage: bool,
 }
 
 impl BufferUsage {
+    /// Returns an empty `BufferUsage` with all flags set to false.
     pub const fn empty() -> Self {
         Self {
             vertex: false,
@@ -203,6 +232,7 @@ impl BufferUsage {
         }
     }
 
+    /// Returns a `BufferUsage` configured for vertex buffer usage.
     pub const fn vertex() -> Self {
         Self {
             vertex: true,
@@ -212,6 +242,7 @@ impl BufferUsage {
         }
     }
 
+    /// Returns a `BufferUsage` configured for index buffer usage.
     pub const fn index() -> Self {
         Self {
             vertex: false,
@@ -221,6 +252,7 @@ impl BufferUsage {
         }
     }
 
+    /// Returns a `BufferUsage` configured for uniform buffer usage.
     pub const fn uniform() -> Self {
         Self {
             vertex: false,
@@ -244,22 +276,19 @@ pub struct EngineInput {
 #[derive(Debug, Clone)]
 pub enum InputEvent {
     /// Window was resized
-    Resized { width: u32, height: u32 },
+    Resized {
+        /// Width of the window
+        width: u32,
+        /// Height of the window
+        height: u32,
+    },
     /// Data request was fulfilled
-    DataReady { key: String, data: Vec<u8> },
-    /// User input (for interactive slides)
-    UserInput { kind: InputKind },
-}
-
-/// User input kind
-#[derive(Debug, Clone)]
-pub enum InputKind {
-    /// Mouse/touch position
-    Position { x: f32, y: f32 },
-    /// Mouse button or touch start/end
-    Button { pressed: bool },
-    /// Keyboard input
-    Key { code: String, pressed: bool },
+    DataReady {
+        /// Key identifying the data
+        key: String,
+        /// The data that was requested
+        data: Vec<u8>,
+    }
 }
 
 /// Output from the engine update loop

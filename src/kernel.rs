@@ -364,12 +364,9 @@ impl Engine {
                     &format!("Viewport resized to {}x{}", width, height),
                 );
             }
-            InputEvent::DataReady { key, data } => {
+            InputEvent::DataReady { key, data: _ } => {
                 // Data request fulfilled by host
                 host.log(LogLevel::Debug, &format!("Data ready for key: {}", key));
-            }
-            InputEvent::UserInput { kind } => {
-                // Forward to slide (handled by host)
             }
         }
     }

@@ -30,8 +30,6 @@
 //!
 //! See the kernel documentation for complete examples.
 
-use std::collections::VecDeque;
-
 /// Wire format version for shared memory layout.
 pub const WIRE_VERSION: u32 = 2;
 
@@ -118,13 +116,21 @@ impl Default for SlideSpecHeader {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LimitsMem {
+    /// Maximum number of vertices.
     pub max_vertices: u32,
+    /// Maximum number of indices.
     pub max_indices: u32,
+    /// Maximum number of static meshes.
     pub max_static_meshes: u32,
+    /// Maximum number of dynamic meshes.
     pub max_dynamic_meshes: u32,
+    /// Maximum number of textures.
     pub max_textures: u32,
+    /// Maximum texture data size in bytes.
     pub max_texture_bytes: u32,
+    /// Maximum texture dimension (width or height).
     pub max_texture_dim: u32,
+    /// Padding for alignment.
     pub _padding: u32,
 }
 
@@ -230,10 +236,15 @@ pub struct CameraPathMem {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraKeyframeMem {
+    /// Keyframe time in seconds.
     pub time: f32,
+    /// Camera position in world space.
     pub position: [f32; 3],
+    /// Camera target point in world space.
     pub target: [f32; 3],
+    /// Up direction for the camera.
     pub up: [f32; 3],
+    /// Vertical field of view in degrees.
     pub fov_y_deg: f32,
 }
 

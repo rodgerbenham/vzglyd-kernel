@@ -53,7 +53,10 @@ pub enum LifecycleEvent {
     /// Slide initialization requested.
     Init,
     /// Slide update with delta time.
-    Update { dt: f32 },
+    Update {
+        /// Delta time for the update.
+        dt: f32
+    },
     /// Slide should be parked.
     Park,
     /// Slide should be unloaded.

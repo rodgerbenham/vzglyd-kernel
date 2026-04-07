@@ -8,7 +8,6 @@ use glam::{Mat3, Mat4, Vec3};
 use serde_json::{Map as JsonMap, Value as JsonValue};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use vzglyd_slide::PipelineKind;
 
 /// Errors that can occur during GLB loading.
 #[derive(Debug, Error)]

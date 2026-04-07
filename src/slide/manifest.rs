@@ -136,7 +136,12 @@ pub struct ManifestSidecar {
 pub enum ManifestValidationError {
     /// ABI version mismatch.
     #[error("abi_version {found} does not match engine ABI {expected}")]
-    AbiVersion { found: u32, expected: u32 },
+    AbiVersion {
+        /// The ABI version found in the manifest.
+        found: u32,
+        /// The expected ABI version from the engine.
+        expected: u32,
+    },
     /// Unknown scene space.
     #[error("unknown scene_space '{0}'")]
     UnknownSceneSpace(String),
@@ -308,7 +313,7 @@ pub fn parse_transition_kind(kind: &str) -> TransitionKind {
         "wipe_down" => TransitionKind::WipeDown,
         "dissolve" => TransitionKind::Dissolve,
         "cut" => TransitionKind::Cut,
-        other => {
+        _other => {
             // In kernel, we can't log, so we just return default
             TransitionKind::Crossfade
         }

@@ -98,7 +98,7 @@ pub mod types;
 // Re-export main types
 pub use types::{
     BufferHandle, BufferUsage, DataRequest, EngineInput, EngineOutput, EngineState, Host,
-    InputEvent, InputKind, LogLevel, PipelineKind, RenderCommand, SamplerHandle, TextureFormat,
+    InputEvent, LogLevel, PipelineKind, RenderCommand, SamplerHandle, TextureFormat,
     TextureHandle,
 };
 
