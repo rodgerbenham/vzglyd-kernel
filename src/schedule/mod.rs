@@ -51,6 +51,33 @@ pub struct PlaylistDefaults {
     pub transition_in: Option<String>,
     /// Transition played when this slide leaves the screen.
     pub transition_out: Option<String>,
+    /// Optional screensaver configuration. When present, activates a burn-in protection
+    /// intermission after the display has been running for `timeout_seconds`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub screensaver: Option<ScreensaverConfig>,
+}
+
+/// Screensaver / burn-in protection configuration.
+///
+/// After `timeout_seconds` of continuous display the normal playlist and border
+/// overlay are suppressed. A full-screen "Intermission" scene with a drifting
+/// countdown is shown instead. When `duration_seconds` elapses the playlist
+/// resumes from where it left off.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreensaverConfig {
+    /// Seconds of continuous display before the screensaver activates. Default: 300 (5 min).
+    pub timeout_seconds: u32,
+    /// How long (seconds) the screensaver runs before resuming the playlist. Default: 60.
+    pub duration_seconds: u32,
+}
+
+impl Default for ScreensaverConfig {
+    fn default() -> Self {
+        Self {
+            timeout_seconds: 300,
+            duration_seconds: 60,
+        }
+    }
 }
 
 /// A single entry in the `slides` array of `playlist.json`.
@@ -260,6 +287,7 @@ mod tests {
                 duration_seconds: Some(10),
                 transition_in: Some("crossfade".into()),
                 transition_out: Some("wipe_left".into()),
+                screensaver: None,
             },
             display_scale: 1.0,
             slides: vec![PlaylistEntry {
@@ -287,6 +315,7 @@ mod tests {
             duration_seconds: Some(10),
             transition_in: None,
             transition_out: None,
+            screensaver: None,
         };
 
         // Entry override takes priority
@@ -310,6 +339,28 @@ mod tests {
         };
         let defaults = PlaylistDefaults::default();
         assert_eq!(resolve_duration(&entry, &defaults, 7.0), 7.0);
+    }
+
+    #[test]
+    fn parse_screensaver_config() {
+        let json = br#"{
+            "defaults": {
+                "duration_seconds": 10,
+                "screensaver": { "timeout_seconds": 300, "duration_seconds": 60 }
+            },
+            "slides": [{ "path": "clock.vzglyd" }]
+        }"#;
+        let playlist = parse_playlist(json).expect("parse playlist");
+        let ss = playlist.defaults.screensaver.expect("screensaver config");
+        assert_eq!(ss.timeout_seconds, 300);
+        assert_eq!(ss.duration_seconds, 60);
+    }
+
+    #[test]
+    fn screensaver_config_is_optional() {
+        let json = br#"{"slides":[{"path":"clock.vzglyd"}]}"#;
+        let playlist = parse_playlist(json).expect("parse playlist");
+        assert!(playlist.defaults.screensaver.is_none());
     }
 
     #[test]

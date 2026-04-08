@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::Host;
 use crate::lifecycle::SlideState;
-use crate::schedule::{Playlist, ResolvedSlideEntry, resolve_schedule_from_playlist};
+use crate::schedule::{Playlist, ResolvedSlideEntry, ScreensaverConfig, resolve_schedule_from_playlist};
 use crate::transition::{ActiveTransition, TransitionKind, TransitionState, resolve_transition};
 use crate::types::{EngineInput, EngineOutput, EngineState, InputEvent, LogLevel, RenderCommand};
 
@@ -34,6 +34,21 @@ pub struct FrameRenderState {
     pub elapsed_secs: f32,
     /// Total number of slides in the schedule.
     pub total_slides: usize,
+    /// Present when the screensaver is active. Hosts should suppress the normal
+    /// HUD border and render the intermission scene instead.
+    pub screensaver: Option<ScreensaverFrameState>,
+}
+
+/// State passed to hosts when the screensaver is active.
+#[derive(Debug, Clone)]
+pub struct ScreensaverFrameState {
+    /// Seconds remaining until the playlist resumes.
+    pub remaining_secs: f32,
+    /// Total screensaver duration (for progress display).
+    pub total_secs: f32,
+    /// Accumulated screensaver time in seconds; used by the geometry builder
+    /// to compute the slow text-drift offset.
+    pub elapsed_secs: f32,
 }
 
 /// Default slide duration in seconds.
@@ -163,6 +178,14 @@ pub struct Engine {
     fps: f32,
     /// Whether the engine is initialized.
     is_initialized: bool,
+    /// Optional screensaver configuration extracted from the playlist.
+    screensaver_config: Option<ScreensaverConfig>,
+    /// Accumulated display time since the last screensaver reset (seconds).
+    display_elapsed_secs: f32,
+    /// Elapsed time inside the current screensaver run (seconds).
+    screensaver_elapsed_secs: f32,
+    /// Whether the screensaver is currently active.
+    screensaver_active: bool,
 }
 
 impl Default for Engine {
@@ -184,7 +207,28 @@ impl Engine {
             frame_times: Vec::with_capacity(30),
             fps: 0.0,
             is_initialized: false,
+            screensaver_config: None,
+            display_elapsed_secs: 0.0,
+            screensaver_elapsed_secs: 0.0,
+            screensaver_active: false,
         }
+    }
+
+    /// Configures the screensaver independently of a playlist load.
+    ///
+    /// `timeout_secs` is how long the display runs before activating the screensaver.
+    /// `duration_secs` is how long the screensaver runs before the playlist resumes.
+    /// Pass `None` to disable the screensaver.
+    pub fn set_screensaver_config(&mut self, config: Option<ScreensaverConfig>) {
+        self.screensaver_config = config;
+        self.display_elapsed_secs = 0.0;
+        self.screensaver_elapsed_secs = 0.0;
+        self.screensaver_active = false;
+    }
+
+    /// Returns `true` if the screensaver is currently active.
+    pub fn is_screensaver_active(&self) -> bool {
+        self.screensaver_active
     }
 
     /// Creates a new engine with custom configuration.
@@ -225,6 +269,8 @@ impl Engine {
 
     /// Sets the schedule from a playlist.
     ///
+    /// Also extracts screensaver configuration from `playlist.defaults.screensaver` when present.
+    ///
     /// # Arguments
     /// * `playlist` - The playlist to use
     /// * `base_path` - Base path to prepend to slide paths
@@ -232,6 +278,10 @@ impl Engine {
         let slides =
             resolve_schedule_from_playlist(playlist, base_path, self.config.default_duration_secs);
         self.set_resolved_schedule(slides);
+        self.screensaver_config = playlist.defaults.screensaver.clone();
+        self.display_elapsed_secs = 0.0;
+        self.screensaver_elapsed_secs = 0.0;
+        self.screensaver_active = false;
     }
 
     /// Returns the current engine state.
@@ -315,20 +365,26 @@ impl Engine {
             self.process_event(host, event);
         }
 
-        // Update current slide
-        if let Some(current) = self.schedule.get_mut(self.current_index) {
-            if current.state.is_active() {
-                current.elapsed_secs += input.dt;
+        // Advance screensaver state machine.
+        self.update_screensaver(input.dt);
+
+        // Only advance slide timing when the screensaver is not active.
+        if !self.screensaver_active {
+            // Update current slide
+            if let Some(current) = self.schedule.get_mut(self.current_index) {
+                if current.state.is_active() {
+                    current.elapsed_secs += input.dt;
+                }
             }
-        }
 
-        // Check for transition
-        self.check_transition();
+            // Check for transition
+            self.check_transition();
 
-        // Update transition if active
-        if let Some(transition) = self.transition.as_active() {
-            if transition.is_complete(self.total_time_secs) {
-                self.complete_transition();
+            // Update transition if active
+            if let Some(transition) = self.transition.as_active() {
+                if transition.is_complete(self.total_time_secs) {
+                    self.complete_transition();
+                }
             }
         }
 
@@ -340,6 +396,31 @@ impl Engine {
             commands,
             state: self.state(),
             requests: Vec::new(),
+        }
+    }
+
+    /// Advances the screensaver state machine by `dt` seconds.
+    fn update_screensaver(&mut self, dt: f32) {
+        let Some(config) = &self.screensaver_config else {
+            return;
+        };
+        let timeout = config.timeout_seconds as f32;
+        let duration = config.duration_seconds as f32;
+
+        if self.screensaver_active {
+            self.screensaver_elapsed_secs += dt;
+            if self.screensaver_elapsed_secs >= duration {
+                // Resume the playlist.
+                self.screensaver_active = false;
+                self.screensaver_elapsed_secs = 0.0;
+                self.display_elapsed_secs = 0.0;
+            }
+        } else {
+            self.display_elapsed_secs += dt;
+            if self.display_elapsed_secs >= timeout {
+                self.screensaver_active = true;
+                self.screensaver_elapsed_secs = 0.0;
+            }
         }
     }
 
@@ -456,9 +537,22 @@ impl Engine {
     /// Use this to determine which slide(s) to render and how to composite them.
     /// During a transition, `current_slide_idx` is the outgoing slide and
     /// `next_slide_idx` is the incoming slide.
+    ///
+    /// When `screensaver` is `Some`, hosts should suppress the normal HUD border
+    /// and slide content, rendering the intermission scene instead.
     pub fn frame_state(&self) -> FrameRenderState {
         let current = self.schedule.get(self.current_index);
         let elapsed_secs = current.map(|s| s.elapsed_secs).unwrap_or(0.0);
+
+        let screensaver = if self.screensaver_active {
+            self.screensaver_config.as_ref().map(|cfg| ScreensaverFrameState {
+                remaining_secs: (cfg.duration_seconds as f32 - self.screensaver_elapsed_secs).max(0.0),
+                total_secs: cfg.duration_seconds as f32,
+                elapsed_secs: self.screensaver_elapsed_secs,
+            })
+        } else {
+            None
+        };
 
         match &self.transition {
             TransitionState::Idle => FrameRenderState {
@@ -468,6 +562,7 @@ impl Engine {
                 transition_kind: None,
                 elapsed_secs,
                 total_slides: self.schedule.len(),
+                screensaver,
             },
             TransitionState::Blending(active) => {
                 let next_idx = if self.schedule.len() > 1 {
@@ -482,6 +577,7 @@ impl Engine {
                     transition_kind: Some(active.kind),
                     elapsed_secs,
                     total_slides: self.schedule.len(),
+                    screensaver,
                 }
             }
         }
@@ -552,6 +648,95 @@ mod tests {
         fn now(&self) -> f32 {
             0.0
         }
+    }
+
+    #[test]
+    fn screensaver_activates_after_timeout() {
+        let mut engine = Engine::new();
+        engine.set_schedule(vec!["a.vzglyd".into(), "b.vzglyd".into()]);
+        engine.schedule[0].state = SlideState::Active;
+        engine.set_screensaver_config(Some(ScreensaverConfig {
+            timeout_seconds: 5,
+            duration_seconds: 10,
+        }));
+
+        let mut host = TestHost;
+
+        // Advance just under the timeout — screensaver should not be active.
+        engine.update(&mut host, EngineInput { dt: 4.9, events: vec![] });
+        assert!(!engine.is_screensaver_active());
+        assert!(engine.frame_state().screensaver.is_none());
+
+        // Push past the timeout.
+        engine.update(&mut host, EngineInput { dt: 0.2, events: vec![] });
+        assert!(engine.is_screensaver_active());
+        let ss = engine.frame_state().screensaver.expect("screensaver state");
+        assert!(ss.remaining_secs <= 10.0);
+        assert!(ss.elapsed_secs >= 0.0);
+    }
+
+    #[test]
+    fn screensaver_resumes_after_duration() {
+        let mut engine = Engine::new();
+        engine.set_schedule(vec!["a.vzglyd".into()]);
+        engine.schedule[0].state = SlideState::Active;
+        engine.set_screensaver_config(Some(ScreensaverConfig {
+            timeout_seconds: 1,
+            duration_seconds: 3,
+        }));
+
+        let mut host = TestHost;
+
+        // Trigger screensaver.
+        engine.update(&mut host, EngineInput { dt: 1.1, events: vec![] });
+        assert!(engine.is_screensaver_active());
+
+        // Advance through the screensaver duration.
+        engine.update(&mut host, EngineInput { dt: 3.1, events: vec![] });
+        assert!(!engine.is_screensaver_active());
+        assert!(engine.frame_state().screensaver.is_none());
+    }
+
+    #[test]
+    fn screensaver_pauses_slide_advancement() {
+        let mut engine = Engine::new();
+        engine.set_schedule(vec!["a.vzglyd".into()]);
+        engine.schedule[0].state = SlideState::Active;
+        engine.set_screensaver_config(Some(ScreensaverConfig {
+            timeout_seconds: 2,
+            duration_seconds: 5,
+        }));
+
+        let mut host = TestHost;
+
+        // Advance 2 seconds normally.
+        engine.update(&mut host, EngineInput { dt: 2.0, events: vec![] });
+        let elapsed_before = engine.slide_entry(0).unwrap().elapsed_secs;
+
+        // Trigger screensaver.
+        engine.update(&mut host, EngineInput { dt: 0.1, events: vec![] });
+        assert!(engine.is_screensaver_active());
+
+        // During screensaver, slide elapsed should not advance.
+        engine.update(&mut host, EngineInput { dt: 1.0, events: vec![] });
+        let elapsed_during = engine.slide_entry(0).unwrap().elapsed_secs;
+        assert!(
+            (elapsed_during - elapsed_before).abs() < 0.01,
+            "slide elapsed advanced during screensaver: before={elapsed_before} during={elapsed_during}"
+        );
+    }
+
+    #[test]
+    fn screensaver_disabled_when_no_config() {
+        let mut engine = Engine::new();
+        engine.set_schedule(vec!["a.vzglyd".into()]);
+        engine.schedule[0].state = SlideState::Active;
+
+        let mut host = TestHost;
+        // Advance a lot — no screensaver config, should never activate.
+        engine.update(&mut host, EngineInput { dt: 9999.0, events: vec![] });
+        assert!(!engine.is_screensaver_active());
+        assert!(engine.frame_state().screensaver.is_none());
     }
 
     #[test]

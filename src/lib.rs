@@ -86,6 +86,7 @@
 
 pub mod glb;
 pub mod kernel;
+pub mod management;
 pub mod overlay;
 pub mod lifecycle;
 pub mod schedule;
@@ -103,14 +104,23 @@ pub use types::{
 };
 
 // Re-export main engine types
-pub use kernel::{Engine, EngineConfig, FrameRenderState, SlideEntry, SlideManifestMetadata};
+pub use kernel::{Engine, EngineConfig, FrameRenderState, ScreensaverFrameState, SlideEntry, SlideManifestMetadata};
 pub use transition::TransitionKind;
 
 // Re-export overlay types
 pub use overlay::{
     BORDER_PX, COLOR_BORDER, COLOR_CLOCK, COLOR_FOOTER_BG, COLOR_TITLE, FOOTER_PX, GLYPH_SIZE,
     OverlayVertex, TEXT_MARGIN_PX, TEXT_SCALE, build_font_atlas_pixels, build_hud_geometry,
-    normalize_text,
+    build_screensaver_geometry, normalize_text,
+};
+
+// Re-export schedule types
+pub use schedule::ScreensaverConfig;
+
+// Re-export management types
+pub use management::{
+    ENGINE_DEFAULT_DURATION_SECS, HydratedPlaylistEntry, SECRETS_FILENAME, SecretsStore,
+    SlideLibraryEntry, hydrate_entry, validate_params,
 };
 
 // Re-export GLB types

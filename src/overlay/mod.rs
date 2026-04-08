@@ -196,6 +196,108 @@ pub fn build_hud_geometry(
     (verts, idxs)
 }
 
+// ── Screensaver geometry ──────────────────────────────────────────────────────
+
+/// Builds full-screen screensaver geometry for burn-in protection.
+///
+/// Renders (in painter's order):
+/// 1. Full-screen opaque black background — completely covers the slide beneath.
+/// 2. "Intermission" heading — centered, slightly larger text.
+/// 3. Countdown — formatted as `"MM:SS"`, centered below the heading.
+///
+/// Both text elements drift slowly in a sinusoidal pattern keyed to
+/// `state.elapsed_secs`, so no static pixel pattern is repeated on the CRT.
+///
+/// Uses the same [`OverlayVertex`] format as [`build_hud_geometry`]; hosts may
+/// feed this output directly into the existing overlay render pipeline.
+///
+/// # Parameters
+/// - `glyph_map`: from [`build_font_atlas_pixels`]
+/// - `sw`, `sh`: surface width and height in pixels
+/// - `state`: current screensaver timing from [`crate::kernel::ScreensaverFrameState`]
+pub fn build_screensaver_geometry(
+    glyph_map: &HashMap<char, [f32; 4]>,
+    sw: u32,
+    sh: u32,
+    elapsed_secs: f32,
+    remaining_secs: f32,
+) -> (Vec<OverlayVertex>, Vec<u16>) {
+    let mut verts: Vec<OverlayVertex> = Vec::new();
+    let mut idxs: Vec<u16> = Vec::new();
+
+    let sw_f = sw as f32;
+    let sh_f = sh as f32;
+
+    // Drift offset: slow sinusoidal motion to prevent burn-in of the screensaver
+    // itself. Amplitude is ≈6% of the half-width / ≈4% of the half-height.
+    let drift_x_ndc = (elapsed_secs * 0.08).sin() * 0.06;
+    let drift_y_ndc = (elapsed_secs * 0.05).cos() * 0.04;
+
+    // 1. Full-screen opaque black background.
+    push_solid(&mut verts, &mut idxs, 0.0, 0.0, sw_f, sh_f, sw_f, sh_f, [0.0, 0.0, 0.0, 1.0]);
+
+    // 2. "Intermission" heading — centered at 40% down the screen.
+    const TITLE_SCALE: f32 = 3.0; // 3× → 24 px tall glyphs
+    let title_advance = GLYPH_SIZE * TITLE_SCALE;
+    let title_text = "Intermission";
+    let title_w = title_text.chars().count() as f32 * title_advance;
+    let title_cx_px = sw_f * 0.5 - title_w * 0.5 + drift_x_ndc * sw_f * 0.5;
+    let title_cy_px = sh_f * 0.40 - title_advance * 0.5 + drift_y_ndc * sh_f * 0.5;
+    push_text_scaled(
+        &mut verts,
+        &mut idxs,
+        glyph_map,
+        title_text,
+        title_cx_px,
+        title_cy_px,
+        title_advance,
+        sw_f,
+        sh_f,
+        [0.70, 0.70, 0.70, 1.0],
+    );
+
+    // 3. Countdown — format MM:SS, centered below heading.
+    let total_remaining = remaining_secs.ceil() as u32;
+    let mins = total_remaining / 60;
+    let secs = total_remaining % 60;
+    let countdown_str = format!("{:02}:{:02}", mins, secs);
+    let cd_advance = GLYPH_SIZE * TEXT_SCALE; // 2× (standard HUD size)
+    let cd_w = countdown_str.chars().count() as f32 * cd_advance;
+    let cd_cx_px = sw_f * 0.5 - cd_w * 0.5 + drift_x_ndc * sw_f * 0.5;
+    let cd_cy_px = title_cy_px + title_advance + cd_advance * 0.5;
+    push_text_scaled(
+        &mut verts,
+        &mut idxs,
+        glyph_map,
+        &countdown_str,
+        cd_cx_px,
+        cd_cy_px,
+        cd_advance,
+        sw_f,
+        sh_f,
+        [0.45, 0.45, 0.45, 1.0],
+    );
+
+    (verts, idxs)
+}
+
+/// Like [`push_text`] but the caller supplies the per-glyph advance directly
+/// (so it works for any scale factor).
+fn push_text_scaled(
+    verts: &mut Vec<OverlayVertex>,
+    idxs: &mut Vec<u16>,
+    glyph_map: &HashMap<char, [f32; 4]>,
+    text: &str,
+    x: f32,
+    y: f32,
+    advance: f32,
+    sw: f32,
+    sh: f32,
+    color: [f32; 4],
+) {
+    push_text(verts, idxs, glyph_map, text, x, y, advance, sw, sh, color);
+}
+
 // ── Text normalization ────────────────────────────────────────────────────────
 
 /// Map common Unicode typographic characters to ASCII equivalents.
@@ -375,6 +477,43 @@ mod tests {
             .iter()
             .any(|v| (v.position[1] - footer_top_ndc).abs() < 1e-4);
         assert!(has_footer_top, "no vertex at footer top ndc={footer_top_ndc}");
+    }
+
+    #[test]
+    fn build_screensaver_geometry_non_empty() {
+        let m = test_glyph_map();
+        let (verts, idxs) = build_screensaver_geometry(&m, 1280, 720, 0.0, 60.0);
+        assert!(!verts.is_empty());
+        assert!(!idxs.is_empty());
+    }
+
+    #[test]
+    fn build_screensaver_geometry_positions_in_ndc() {
+        let m = test_glyph_map();
+        let (verts, _) = build_screensaver_geometry(&m, 1280, 720, 5.0, 30.0);
+        for v in &verts {
+            assert!(
+                v.position[0] >= -1.0 && v.position[0] <= 1.0,
+                "x out of NDC: {}",
+                v.position[0]
+            );
+            assert!(
+                v.position[1] >= -1.0 && v.position[1] <= 1.0,
+                "y out of NDC: {}",
+                v.position[1]
+            );
+        }
+    }
+
+    #[test]
+    fn build_screensaver_geometry_has_black_fullscreen_background() {
+        let m = test_glyph_map();
+        let (verts, _) = build_screensaver_geometry(&m, 640, 480, 0.0, 60.0);
+        // The first quad should be at the full NDC range (solid black background).
+        let first_four: Vec<_> = verts.iter().take(4).collect();
+        for v in &first_four {
+            assert_eq!(v.color, [0.0, 0.0, 0.0, 1.0], "background should be opaque black");
+        }
     }
 
     #[test]
