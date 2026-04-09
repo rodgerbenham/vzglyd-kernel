@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::audio::AudioCommand;
+
 /// Logging severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
@@ -174,6 +176,9 @@ pub enum RenderCommand {
 
     /// Destroy a buffer resource
     DestroyBuffer(BufferHandle),
+
+    /// Play or control audio (delegated to host audio subsystem)
+    Audio(AudioCommand),
 }
 
 /// Pipeline kind (opaque vs transparent)

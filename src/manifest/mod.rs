@@ -54,6 +54,25 @@ pub struct ManifestAssets {
     /// Scene assets.
     #[serde(default)]
     pub scenes: Vec<SceneAssetRef>,
+    /// Sound assets (MP3, WAV, Ogg, FLAC).
+    #[serde(default)]
+    pub sounds: Vec<SoundAssetRef>,
+}
+
+/// Reference to a sound asset.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SoundAssetRef {
+    /// Path to the sound file.
+    pub path: String,
+    /// Audio format hint.
+    #[serde(default)]
+    pub format: Option<String>,
+    /// Label for the asset.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// Unique ID for the asset.
+    #[serde(default)]
+    pub id: Option<String>,
 }
 
 /// Reference to a texture or mesh asset.
@@ -271,6 +290,9 @@ impl SlideManifest {
             }
             for scene in &assets.scenes {
                 validate_package_relative_path(&scene.path)?;
+            }
+            for sound in &assets.sounds {
+                validate_package_relative_path(&sound.path)?;
             }
         }
 
@@ -587,6 +609,7 @@ mod tests {
                 }],
                 meshes: vec![],
                 scenes: vec![],
+                sounds: vec![],
             }),
             ..Default::default()
         };

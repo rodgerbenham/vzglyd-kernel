@@ -95,6 +95,7 @@ pub mod shader;
 pub mod trace;
 pub mod transition;
 pub mod types;
+pub mod audio;
 
 // Re-export main types
 pub use types::{
@@ -102,6 +103,7 @@ pub use types::{
     InputEvent, LogLevel, PipelineKind, RenderCommand, SamplerHandle, TextureFormat,
     TextureHandle,
 };
+pub use audio::{AudioCommand, SoundDesc, SoundFormat};
 
 // Re-export main engine types
 pub use kernel::{Engine, EngineConfig, FrameRenderState, ScreensaverFrameState, SlideEntry, SlideManifestMetadata};
@@ -120,7 +122,7 @@ pub use schedule::ScreensaverConfig;
 // Re-export management types
 pub use management::{
     ENGINE_DEFAULT_DURATION_SECS, HydratedPlaylistEntry, SECRETS_FILENAME, SecretsStore,
-    SlideLibraryEntry, hydrate_entry, validate_params,
+    SlideLibraryEntry, SoundAssetRef, hydrate_entry, validate_params,
 };
 
 // Re-export GLB types

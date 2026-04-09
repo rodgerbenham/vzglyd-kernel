@@ -87,6 +87,8 @@ loop {
 
 - **`types`**: Core types including `Host`, `RenderCommand`, `EngineInput`, `EngineOutput`
 - **`kernel`**: Main engine state machine (`Engine`)
+- **`audio`**: Audio command types (`AudioCommand`, `SoundDesc`, `SoundFormat`) for slides to issue playback commands to the host
+- **`manifest`**: Slide manifest parsing and validation, including `SoundAssetRef` for audio asset declarations
 - **`slide`**: Slide manifest parsing, SlideSpec decoding, validation
 - **`schedule`**: Playlist parsing and schedule management
 - **`transition`**: Transition types and state machine

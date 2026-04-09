@@ -19,3 +19,4 @@ pub use hydration::{
 };
 pub use library::SlideLibraryEntry;
 pub use secrets::{SECRETS_FILENAME, SecretsStore};
+pub use crate::manifest::SoundAssetRef;
