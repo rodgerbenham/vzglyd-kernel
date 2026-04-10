@@ -283,6 +283,7 @@ pub fn build_screensaver_geometry(
 
 /// Like [`push_text`] but the caller supplies the per-glyph advance directly
 /// (so it works for any scale factor).
+#[allow(clippy::too_many_arguments)]
 fn push_text_scaled(
     verts: &mut Vec<OverlayVertex>,
     idxs: &mut Vec<u16>,
@@ -331,6 +332,7 @@ fn px_to_ndc_y(py: f32, sh: f32) -> f32 {
 }
 
 /// Push a solid-colour quad from pixel-space rect `(x0, y0) → (x1, y1)`.
+#[allow(clippy::too_many_arguments)]
 fn push_solid(
     verts: &mut Vec<OverlayVertex>,
     idxs: &mut Vec<u16>,
@@ -357,6 +359,7 @@ fn push_solid(
 }
 
 /// Push font-atlas glyph quads for `text` starting at pixel `(x, y)`.
+#[allow(clippy::too_many_arguments)]
 fn push_text(
     verts: &mut Vec<OverlayVertex>,
     idxs: &mut Vec<u16>,

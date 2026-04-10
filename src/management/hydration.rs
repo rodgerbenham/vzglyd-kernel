@@ -159,7 +159,7 @@ fn resolve_transition_in(
     entry
         .transition_in
         .as_deref()
-        .or_else(|| defaults.transition_in.as_deref())
+        .or(defaults.transition_in.as_deref())
         .or_else(|| {
             manifest.and_then(|m| {
                 m.display
@@ -178,7 +178,7 @@ fn resolve_transition_out(
     entry
         .transition_out
         .as_deref()
-        .or_else(|| defaults.transition_out.as_deref())
+        .or(defaults.transition_out.as_deref())
         .or_else(|| {
             manifest.and_then(|m| {
                 m.display

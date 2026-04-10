@@ -1,8 +1,8 @@
-//! Audio command types for the VZGLYD kernel.
+//! Audio types for the VZGLYD kernel.
 //!
-//! This module defines platform-agnostic audio commands that slides can issue
-//! through the [`AudioCommand`] enum. Host implementations (native wgpu, WebGPU, etc.)
-//! are responsible for actual audio playback using their respective audio APIs.
+//! Sound assets are embedded in the `.vzglyd` bundle. The kernel parses and
+//! exposes them via the manifest loader; hosts (native, web) register WASM
+//! import functions that slides call directly to control playback.
 
 use serde::{Deserialize, Serialize};
 
@@ -31,56 +31,4 @@ pub struct SoundDesc {
     pub format: SoundFormat,
     /// Raw audio bytes (MP3, WAV, Ogg, or FLAC)
     pub data: Vec<u8>,
-}
-
-/// Platform-agnostic audio commands issued by slides to the host.
-///
-/// Slides identify each sound instance with a `u32` ID of their choosing.
-/// The host maps this ID to an underlying audio playback handle (e.g., a rodio
-/// `Sink` on native, or an `AudioBufferSourceNode` on web).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AudioCommand {
-    /// Play a sound from the slide's embedded assets.
-    ///
-    /// - `id`: Unique identifier chosen by the slide for this playback instance.
-    ///   The slide can later use this ID to stop, pause, or change the volume.
-    /// - `asset_key`: The `key` field of a `SoundDesc` from the slide's `sounds` list.
-    /// - `volume`: Playback volume from `0.0` (silent) to `1.0` (full volume).
-    /// - `looped`: If `true`, the sound repeats until explicitly stopped.
-    PlaySound {
-        /// Sound instance ID chosen by the slide
-        id: u32,
-        /// Asset key matching a `SoundDesc.key` in the slide spec
-        asset_key: String,
-        /// Volume from 0.0 to 1.0
-        volume: f32,
-        /// Whether to loop the sound
-        looped: bool,
-    },
-
-    /// Stop a currently playing sound by its ID.
-    StopSound {
-        /// Sound instance ID to stop
-        id: u32,
-    },
-
-    /// Change the volume of a playing sound.
-    SetVolume {
-        /// Sound instance ID
-        id: u32,
-        /// New volume from 0.0 to 1.0
-        volume: f32,
-    },
-
-    /// Pause a playing sound (can be resumed with `ResumeSound`).
-    PauseSound {
-        /// Sound instance ID to pause
-        id: u32,
-    },
-
-    /// Resume a previously paused sound.
-    ResumeSound {
-        /// Sound instance ID to resume
-        id: u32,
-    },
 }

@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 /// Each transition kind has a unique shader tag used by the host to select
 /// the appropriate transition shader.
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum TransitionKind {
     /// Crossfade (opacity blend between outgoing and incoming)
+    #[default]
     Crossfade = 0,
     /// Wipe from right to left
     WipeLeft = 1,
@@ -45,12 +46,6 @@ impl TransitionKind {
             Self::Dissolve => 3,
             Self::Cut => 0,
         }
-    }
-}
-
-impl Default for TransitionKind {
-    fn default() -> Self {
-        Self::Crossfade
     }
 }
 

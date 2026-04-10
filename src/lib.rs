@@ -103,7 +103,7 @@ pub use types::{
     InputEvent, LogLevel, PipelineKind, RenderCommand, SamplerHandle, TextureFormat,
     TextureHandle,
 };
-pub use audio::{AudioCommand, SoundDesc, SoundFormat};
+pub use audio::{SoundDesc, SoundFormat};
 
 // Re-export main engine types
 pub use kernel::{Engine, EngineConfig, FrameRenderState, ScreensaverFrameState, SlideEntry, SlideManifestMetadata};
@@ -127,8 +127,8 @@ pub use management::{
 
 // Re-export GLB types
 pub use glb::{
-    GlbError, ImportedCameraProjection, ImportedExtras, ImportedMesh, ImportedScene,
-    ImportedSceneAnchor, ImportedSceneCamera, ImportedSceneDirectionalLight, ImportedSceneMaterial,
-    ImportedSceneMeshNode, ImportedSceneMetadata, ImportedVertex, SceneAssetRef, load_glb_mesh,
-    load_glb_scene,
+    AnimationChannel, AnimationPath, GlbError, ImportedAnimationClip, ImportedCameraProjection,
+    ImportedExtras, ImportedMesh, ImportedScene, ImportedSceneAnchor, ImportedSceneCamera,
+    ImportedSceneDirectionalLight, ImportedSceneMaterial, ImportedSceneMeshNode,
+    ImportedSceneMetadata, ImportedVertex, SceneAssetRef, load_glb_mesh, load_glb_scene,
 };

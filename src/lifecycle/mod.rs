@@ -10,9 +10,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Slide lifecycle states.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SlideState {
     /// Slide is not loaded.
+    #[default]
     Unloaded,
     /// Slide spec is loaded, GPU resources allocated.
     Loaded,
@@ -22,12 +23,6 @@ pub enum SlideState {
     Parked,
     /// Slide is being cleaned up.
     Unloading,
-}
-
-impl Default for SlideState {
-    fn default() -> Self {
-        Self::Unloaded
-    }
 }
 
 impl SlideState {
