@@ -108,8 +108,8 @@ pub struct SlideManifestMetadata {
 pub struct SlideEntry {
     /// Path to the slide.
     pub path: String,
-    /// Optional watched JSON file resolved by the host.
-    pub data_path: Option<String>,
+    /// Optional daemon mission name resolved by the host into a watched JSON file.
+    pub mission_name: Option<String>,
     /// Duration in seconds.
     pub duration_secs: f32,
     /// Transition-in kind.
@@ -130,7 +130,7 @@ impl SlideEntry {
     pub fn new(path: String, duration_secs: f32) -> Self {
         Self {
             path,
-            data_path: None,
+            mission_name: None,
             duration_secs,
             transition_in: None,
             transition_out: None,
@@ -144,7 +144,7 @@ impl SlideEntry {
     fn from_resolved(entry: ResolvedSlideEntry) -> Self {
         Self {
             path: entry.path,
-            data_path: entry.data_path,
+            mission_name: entry.mission_name,
             duration_secs: entry.duration_secs,
             transition_in: entry.transition_in,
             transition_out: entry.transition_out,
@@ -881,7 +881,7 @@ mod tests {
         let mut engine = Engine::new();
         engine.set_resolved_schedule(vec![ResolvedSlideEntry {
             path: "clock.vzglyd".into(),
-            data_path: Some("slides/data/weather.out.json".into()),
+            mission_name: Some("vrx64-weather".into()),
             duration_secs: 20.0,
             transition_in: Some(TransitionKind::Crossfade),
             transition_out: None,
@@ -898,10 +898,7 @@ mod tests {
         );
 
         let entry = engine.slide_entry(0).expect("slide entry");
-        assert_eq!(
-            entry.data_path.as_deref(),
-            Some("slides/data/weather.out.json")
-        );
+        assert_eq!(entry.mission_name.as_deref(), Some("vrx64-weather"));
         assert_eq!(entry.duration_secs, 20.0);
         assert_eq!(entry.transition_in, Some(TransitionKind::Crossfade));
         assert_eq!(entry.transition_out, Some(TransitionKind::Cut));

@@ -12,6 +12,7 @@ pub const PLAYLIST_FILENAME: &str = "playlist.json";
 
 /// Top-level structure for `playlist.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Playlist {
     /// Default display settings applied to any entry that does not specify its own.
     #[serde(default)]
@@ -44,6 +45,7 @@ impl Default for Playlist {
 
 /// Fallback display settings for entries that do not override them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlaylistDefaults {
     /// How long each slide is shown (seconds). Overrides the engine default; overridden by per-entry value.
     pub duration_seconds: Option<u32>,
@@ -64,6 +66,7 @@ pub struct PlaylistDefaults {
 /// countdown is shown instead. When `duration_seconds` elapses the playlist
 /// resumes from where it left off.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScreensaverConfig {
     /// Seconds of continuous display before the screensaver activates. Default: 300 (5 min).
     pub timeout_seconds: u32,
@@ -82,15 +85,16 @@ impl Default for ScreensaverConfig {
 
 /// A single entry in the `slides` array of `playlist.json`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlaylistEntry {
     /// Path to the `.vzglyd` archive or slide directory, relative to the slides directory.
     pub path: String,
-    /// Optional JSON result file watched by the host for this slide's live data.
+    /// Optional daemon mission name watched by the host for this slide's live data.
     ///
-    /// Relative paths resolve from the slides repository root. Absolute paths
-    /// are preserved unchanged.
+    /// At runtime the native host resolves this to
+    /// `~/.brrmmmm/missions/<mission_name>/<mission_name>.out.json`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data_path: Option<String>,
+    pub mission_name: Option<String>,
     /// Set to `false` to skip this slide without removing it from the file. Absent means `true`.
     pub enabled: Option<bool>,
     /// Override display duration for this slide (seconds).
@@ -108,8 +112,8 @@ pub struct PlaylistEntry {
 pub struct ResolvedSlideEntry {
     /// Path to the slide package.
     pub path: String,
-    /// Absolute or repo-root-resolved path to the watched JSON data source.
-    pub data_path: Option<String>,
+    /// Stable daemon mission name used to locate the watched JSON data source.
+    pub mission_name: Option<String>,
     /// Effective duration in seconds after playlist/default resolution.
     pub duration_secs: f32,
     /// Transition played when this slide enters the screen.
@@ -177,10 +181,7 @@ pub fn resolve_schedule_from_playlist(
             } else {
                 format!("{}/{}", base_path, entry.path)
             },
-            data_path: entry
-                .data_path
-                .as_deref()
-                .map(|path| resolve_data_path(base_path, path)),
+            mission_name: entry.mission_name.clone(),
             duration_secs: resolve_duration(entry, &playlist.defaults, engine_default_duration),
             transition_in: entry
                 .transition_in
@@ -220,44 +221,29 @@ pub fn resolve_duration(
         .unwrap_or(engine_default)
 }
 
-fn resolve_data_path(base_path: &str, path: &str) -> String {
-    let candidate = std::path::Path::new(path);
-    if candidate.is_absolute() {
-        return path.to_string();
-    }
-
-    std::path::Path::new(base_path)
-        .join(candidate)
-        .to_string_lossy()
-        .into_owned()
-}
-
 fn validate_playlist(playlist: &Playlist) -> Result<(), String> {
     for (index, entry) in playlist.slides.iter().enumerate() {
-        if let Some(path) = entry.data_path.as_deref() {
-            validate_data_path(path)
-                .map_err(|error| format!("slides[{index}].data_path {error}"))?;
+        if let Some(mission_name) = entry.mission_name.as_deref() {
+            validate_mission_name(mission_name)
+                .map_err(|error| format!("slides[{index}].mission_name {error}"))?;
         }
     }
     Ok(())
 }
 
-fn validate_data_path(path: &str) -> Result<(), &'static str> {
-    let trimmed = path.trim();
+fn validate_mission_name(name: &str) -> Result<(), &'static str> {
+    let trimmed = name.trim();
     if trimmed.is_empty() {
         return Err("must be a non-empty string");
     }
-    if trimmed.contains('\\') {
-        return Err("must use forward slashes");
+    if trimmed == "." || trimmed == ".." {
+        return Err("must not be '.' or '..'");
     }
-
-    let candidate = std::path::Path::new(trimmed);
-    if !candidate.is_absolute()
-        && trimmed
-            .split('/')
-            .any(|segment| segment == "." || segment == "..")
+    if !trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))
     {
-        return Err("must not contain . or .. segments");
+        return Err("may only use letters, numbers, '.', '_' or '-'");
     }
 
     Ok(())
@@ -307,7 +293,7 @@ mod tests {
             slides: vec![
                 PlaylistEntry {
                     path: "a.vzglyd".into(),
-                    data_path: None,
+                    mission_name: None,
                     enabled: Some(true),
                     duration_seconds: None,
                     transition_in: None,
@@ -316,7 +302,7 @@ mod tests {
                 },
                 PlaylistEntry {
                     path: "b.vzglyd".into(),
-                    data_path: None,
+                    mission_name: None,
                     enabled: Some(false),
                     duration_seconds: None,
                     transition_in: None,
@@ -325,7 +311,7 @@ mod tests {
                 },
                 PlaylistEntry {
                     path: "c.vzglyd".into(),
-                    data_path: None,
+                    mission_name: None,
                     enabled: None, // Default: enabled
                     duration_seconds: None,
                     transition_in: None,
@@ -353,7 +339,7 @@ mod tests {
             display_scale: 1.0,
             slides: vec![PlaylistEntry {
                 path: "clock.vzglyd".into(),
-                data_path: Some("data/weather.out.json".into()),
+                mission_name: Some("vrx64-weather".into()),
                 enabled: Some(true),
                 duration_seconds: Some(20),
                 transition_in: None,
@@ -365,10 +351,7 @@ mod tests {
         let resolved = resolve_schedule_from_playlist(&playlist, "slides", 7.0);
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].path, "slides/clock.vzglyd");
-        assert_eq!(
-            resolved[0].data_path.as_deref(),
-            Some("slides/data/weather.out.json")
-        );
+        assert_eq!(resolved[0].mission_name.as_deref(), Some("vrx64-weather"));
         assert_eq!(resolved[0].duration_secs, 20.0);
         assert_eq!(resolved[0].transition_in, Some(TransitionKind::Crossfade));
         assert_eq!(resolved[0].transition_out, Some(TransitionKind::Cut));
@@ -408,13 +391,13 @@ mod tests {
     }
 
     #[test]
-    fn resolve_schedule_preserves_absolute_data_path() {
+    fn resolve_schedule_preserves_mission_name() {
         let playlist = Playlist {
             defaults: PlaylistDefaults::default(),
             display_scale: 1.0,
             slides: vec![PlaylistEntry {
                 path: "clock.vzglyd".into(),
-                data_path: Some("/tmp/weather.out.json".into()),
+                mission_name: Some("vrx64-crypto".into()),
                 enabled: Some(true),
                 duration_seconds: None,
                 transition_in: None,
@@ -424,10 +407,7 @@ mod tests {
         };
 
         let resolved = resolve_schedule_from_playlist(&playlist, "slides", 7.0);
-        assert_eq!(
-            resolved[0].data_path.as_deref(),
-            Some("/tmp/weather.out.json")
-        );
+        assert_eq!(resolved[0].mission_name.as_deref(), Some("vrx64-crypto"));
     }
 
     #[test]
@@ -459,26 +439,33 @@ mod tests {
     }
 
     #[test]
-    fn parse_playlist_rejects_empty_data_path() {
-        let json = br#"{"slides":[{"path":"clock.vzglyd","data_path":"   "}]} "#;
-        let error = parse_playlist(json).expect_err("empty data_path should fail");
-        assert!(error.contains("slides[0].data_path must be a non-empty string"));
+    fn parse_playlist_rejects_empty_mission_name() {
+        let json = br#"{"slides":[{"path":"clock.vzglyd","mission_name":"   "}]} "#;
+        let error = parse_playlist(json).expect_err("empty mission_name should fail");
+        assert!(error.contains("slides[0].mission_name must be a non-empty string"));
     }
 
     #[test]
-    fn parse_playlist_rejects_relative_data_path_escape() {
-        let json = br#"{"slides":[{"path":"clock.vzglyd","data_path":"../weather.out.json"}]}"#;
-        let error = parse_playlist(json).expect_err("escaped data_path should fail");
-        assert!(error.contains("slides[0].data_path must not contain . or .. segments"));
+    fn parse_playlist_rejects_invalid_mission_name() {
+        let json = br#"{"slides":[{"path":"clock.vzglyd","mission_name":"../weather"}]}"#;
+        let error = parse_playlist(json).expect_err("invalid mission_name should fail");
+        assert!(error.contains("slides[0].mission_name may only use letters, numbers, '.', '_' or '-'"));
     }
 
     #[test]
-    fn parse_playlist_accepts_absolute_data_path() {
-        let json = br#"{"slides":[{"path":"clock.vzglyd","data_path":"/tmp/weather.out.json"}]}"#;
-        let playlist = parse_playlist(json).expect("absolute data_path should parse");
+    fn parse_playlist_accepts_mission_name() {
+        let json = br#"{"slides":[{"path":"clock.vzglyd","mission_name":"vrx64-weather"}]}"#;
+        let playlist = parse_playlist(json).expect("mission_name should parse");
         assert_eq!(
-            playlist.slides[0].data_path.as_deref(),
-            Some("/tmp/weather.out.json")
+            playlist.slides[0].mission_name.as_deref(),
+            Some("vrx64-weather")
         );
+    }
+
+    #[test]
+    fn parse_playlist_rejects_legacy_data_path() {
+        let json = br#"{"slides":[{"path":"clock.vzglyd","data_path":"weather.out.json"}]}"#;
+        let error = parse_playlist(json).expect_err("legacy data_path should fail");
+        assert!(error.contains("unknown field `data_path`"));
     }
 }
